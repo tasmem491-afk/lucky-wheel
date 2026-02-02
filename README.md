@@ -1,5 +1,5 @@
 # lucky-wheel
-the easiest wheel of fortune in the world
+The Easiest Wheel of Fortune In The World
 
 
 تطبيق عجلة الحظ الاحترافية لاختيار الأسماء العشوائية، مصمم ليعمل كـ تطبيق ويب تقدمي (PWA).
