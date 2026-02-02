@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" id="htmlTag">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lucky Wheel Pro</title>
+
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#121212">
+    <link rel="apple-touch-icon" href="icon.png">
+
+    <script>
+        // تسجيل الـ Service Worker لضمان العمل بدون إنترنت
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Service Worker Registered'))
+                    .catch(err => console.log('Service Worker Failed', err));
+            });
+        }
+    </script>
+
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #000000;
+            --container-bg: #f5f5f5;
+            --border-color: #000000;
+        }
+
+        [data-theme="black"] {
+            --bg-color: #121212;
+            --text-color: #ffffff;
+            --container-bg: #1e1e1e;
+            --border-color: #ffffff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 5px;
+            height: 100vh;
+            overflow: hidden;
+            transition: 0.3s;
+        }
+
+        #results-container {
+            width: 95%;
+            max-width: 400px;
+            border: 2px solid var(--border-color);
+            padding: 8px;
+            height: 75px;
+            overflow-y: auto;
+            background: var(--container-bg);
+            border-radius: 8px;
+            margin-top: 5px;
+        }
+
+        #winner-display {
+            margin: 10px 0;
+            font-size: 28px;
+            font-weight: bold;
+            color: #e74c3c;
+            min-height: 35px;
+        }
+
+        .wheel-wrapper {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            cursor: pointer;
+        }
+
+        canvas { width: 100%; height: 100%; }
+
+        #pointer {
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0; height: 0; 
+            border-left: 12px solid transparent;
+            border-right: 12px solid transparent;
+            border-top: 25px solid var(--text-color); 
+            z-index: 100;
+        }
+
+        textarea {
+            width: 280px;
+            height: 50px;
+            border: 2px solid var(--border-color);
+            background: var(--container-bg);
+            color: var(--text-color);
+            padding: 8px;
+            text-align: center;
+            outline: none;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .bottom-btns {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .btn {
+            padding: 8px 20px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: 0.2s;
+        }
+
+        .reset-btn { background-color: #ff4444; color: white; }
+        .settings-btn { background-color: #444444; color: white; }
+
+        #settings-panel {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-color);
+            z-index: 1000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .confetti {
+            position: absolute;
+            width: 8px; height: 8px;
+            animation: fall 3s linear forwards;
+            z-index: 50;
+        }
+        @keyframes fall { to { transform: translateY(100vh) rotate(720deg); opacity: 0; } }
+    </style>
+</head>
+<body>
+
+    <div id="results-container">
+        <strong id="resTitle">📜 الفائزين:</strong>
+        <div id="results-list"></div>
+    </div>
+
+    <div id="winner-display"></div>
+
+    <div class="wheel-wrapper" onclick="spin()">
+        <div id="pointer"></div>
+        <canvas id="wheel"></canvas>
+    </div>
+
+    <textarea id="namesInput" placeholder="أدخل الأسماء هنا..." oninput="updateWheel()"></textarea>
+
+    <div class="bottom-btns">
+        <button class="btn reset-btn" onclick="fullReset()" id="resetBtn">حذف الكل</button>
+        <button class="btn settings-btn" onclick="toggleSettings()" id="setBtn">⚙️ الإعدادات</button>
+    </div>
+
+    <div id="settings-panel">
+        <h2 id="panelTitle">الاعدادات</h2>
+        <button class="btn" onclick="changeLang('ar')">العربية</button>
+        <button class="btn" onclick="changeLang('en')">English</button>
+        <hr style="width: 60%; border: 0.5px solid #ccc;">
+        <button class="btn" onclick="toggleTheme('white')" id="whiteModeBtn">☀️ الوضع الأبيض</button>
+        <button class="btn" onclick="toggleTheme('black')" id="blackModeBtn">🌙 الوضع الأسود</button>
+        <button class="btn reset-btn" onclick="toggleSettings()" id="backBtn">عودة</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('wheel');
+        const ctx = canvas.getContext('2d');
+        const namesInput = document.getElementById('namesInput');
+        const winnerDisplay = document.getElementById('winner-display');
+        const resultsList = document.getElementById('results-list');
+        const htmlTag = document.getElementById('htmlTag');
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playTick() {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+        }
+
+        function playWinSound() {
+            for(let i=0; i<10; i++) {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.frequency.setValueAtTime(150 + Math.random() * 400, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 2);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + 2);
+            }
+        }
+
+        const dpr = window.devicePixelRatio || 1;
+        const size = 300;
+        canvas.width = size * dpr; canvas.height = size * dpr;
+        ctx.scale(dpr, dpr);
+
+        let currentAngle = 0;
+        let isSpinning = false;
+        let winnersCount = 0;
+        let namesForWheel = [];
+        const colors = ["#FF5733", "#33FF57", "#3357FF", "#F1C40F", "#9B59B6", "#1ABC9C", "#E67E22", "#E74C3C"];
+
+        const langData = {
+            ar: { 
+                res: "📜 الفائزين:", 
+                reset: "حذف الكل", 
+                set: "⚙️ الإعدادات", 
+                back: "عودة", 
+                title: "الاعدادات", 
+                placeholder: "أدخل الأسماء هنا...", 
+                white: "☀️ الوضع الأبيض", 
+                black: "🌙 الوضع الأسود",
+                dir: "rtl" 
+            },
+            en: { 
+                res: "📜 Winners:", 
+                reset: "Reset All", 
+                set: "⚙️ Settings", 
+                back: "Back", 
+                title: "Settings", 
+                placeholder: "Enter names here...", 
+                white: "☀️ White Theme", 
+                black: "🌙 Black Theme",
+                dir: "ltr" 
+            }
+        };
+
+        function changeLang(lang) {
+            htmlTag.lang = lang; 
+            htmlTag.dir = langData[lang].dir;
+            document.getElementById('resTitle').innerText = langData[lang].res;
+            document.getElementById('resetBtn').innerText = langData[lang].reset;
+            document.getElementById('setBtn').innerText = langData[lang].set;
+            document.getElementById('backBtn').innerText = langData[lang].back;
+            document.getElementById('panelTitle').innerText = langData[lang].title;
+            document.getElementById('whiteModeBtn').innerText = langData[lang].white;
+            document.getElementById('blackModeBtn').innerText = langData[lang].black;
+            namesInput.placeholder = langData[lang].placeholder;
+            updateWheel();
+        }
+
+        function toggleTheme(theme) { 
+            document.body.setAttribute('data-theme', theme); 
+        }
+
+        function toggleSettings() {
+            const panel = document.getElementById('settings-panel');
+            panel.style.display = (panel.style.display === 'flex') ? 'none' : 'flex';
+        }
+
+        function updateWheel() {
+            let rawNames = namesInput.value.split('\n').filter(n => n.trim() !== "");
+            namesForWheel = [];
+            if (rawNames.length > 0) {
+                let multiplier = Math.max(1, Math.ceil(24 / rawNames.length));
+                for (let i = 0; i < multiplier; i++) namesForWheel = namesForWheel.concat(rawNames);
+            } else { namesForWheel = Array(24).fill(""); }
+            draw();
+        }
+
+        function draw() {
+            const totalSlices = namesForWheel.length;
+            const arcSize = (2 * Math.PI) / totalSlices;
+            ctx.clearRect(0, 0, size, size);
+            for (let i = 0; i < totalSlices; i++) {
+                const angle = currentAngle + (i * arcSize);
+                ctx.beginPath();
+                ctx.fillStyle = colors[i % colors.length];
+                ctx.moveTo(150, 150);
+                ctx.arc(150, 150, 145, angle, angle + arcSize);
+                ctx.fill();
+                ctx.strokeStyle = "white"; ctx.stroke();
+                if (namesForWheel[i]) {
+                    ctx.save();
+                    ctx.translate(150, 150);
+                    ctx.rotate(angle + arcSize / 2);
+                    ctx.textAlign = "right"; ctx.fillStyle = "white";
+                    ctx.font = "bold 13px Arial";
+                    ctx.shadowBlur = 4; ctx.shadowColor = "black";
+                    ctx.fillText(namesForWheel[i].substring(0, 12), 140, 5);
+                    ctx.restore();
+                }
+            }
+        }
+
+        function spin() {
+            if (isSpinning || namesInput.value.trim() === "") return;
+            isSpinning = true;
+            winnerDisplay.innerText = "";
+            const spinAngle = Math.random() * 2000 + 4000; 
+            const duration = 5000; 
+            const start = performance.now();
+            const startAngle = currentAngle;
+            let lastTickAngle = 0;
+
+            function animate(time) {
+                const elapsed = time - start;
+                const progress = Math.min(elapsed / duration, 1);
+                const easeOut = 1 - Math.pow(1 - progress, 4);
+                currentAngle = startAngle + (spinAngle * (Math.PI / 180) * easeOut);
+                
+                if (Math.abs(currentAngle - lastTickAngle) > (2 * Math.PI / namesForWheel.length)) {
+                    playTick(); lastTickAngle = currentAngle;
+                }
+
+                draw();
+                if (progress < 1) requestAnimationFrame(animate);
+                else { isSpinning = false; finalizeSpin(); }
+            }
+            requestAnimationFrame(animate);
+        }
+
+        function finalizeSpin() {
+            const totalSlices = namesForWheel.length;
+            const arcSize = (2 * Math.PI) / totalSlices;
+            let finalAngle = currentAngle % (2 * Math.PI);
+            let pointerAngle = (1.5 * Math.PI - finalAngle) % (2 * Math.PI);
+            if (pointerAngle < 0) pointerAngle += 2 * Math.PI;
+
+            const index = Math.floor(pointerAngle / arcSize) % totalSlices;
+            const winner = namesForWheel[index];
+
+            winnerDisplay.innerText = `⭐ ${winner} ⭐`;
+            playWinSound();
+            createConfetti();
+            
+            winnersCount++;
+            const entry = document.createElement('div');
+            entry.innerText = `${winnersCount}- ${winner}`;
+            resultsList.appendChild(entry);
+            document.getElementById('results-container').scrollTop = 9999;
+        }
+
+        function createConfetti() {
+            for(let i=0; i<30; i++) {
+                const c = document.createElement('div');
+                c.className = 'confetti';
+                c.style.left = Math.random() * 100 + 'vw';
+                c.style.backgroundColor = colors[Math.floor(Math.random()*colors.length)];
+                c.style.top = "-10px";
+                document.body.appendChild(c);
+                setTimeout(() => c.remove(), 3000);
+            }
+        }
+
+        function fullReset() {
+            namesInput.value = ""; resultsList.innerHTML = "";
+            winnersCount = 0; winnerDisplay.innerText = "";
+            currentAngle = 0; updateWheel();
+        }
+
+        updateWheel();
+    </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "Lucky Wheel Pro",
+  "short_name": "WheelPro",
+  "description": "عجلة الحظ الاحترافية",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#121212",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
