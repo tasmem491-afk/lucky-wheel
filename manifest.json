@@ -1,7 +1,7 @@
 {
-  "name": "Lucky Wheel Pro",
-  "short_name": "WheelPro",
-  "description": "عجلة الحظ الاحترافية",
+  "name": "عجلة الحظ الاحترافية",
+  "short_name": "عجلة الحظ",
+  "description": "عجلة حظ بسيطة وسلسة بدون تعقيد",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",

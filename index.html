@@ -12,7 +12,6 @@
     <link rel="apple-touch-icon" href="icon.png">
 
     <script>
-        // تسجيل الـ Service Worker لضمان العمل بدون إنترنت
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
@@ -92,6 +91,23 @@
             z-index: 100;
         }
 
+        .input-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .count-badge {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 3px;
+            background: #e74c3c;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 12px;
+        }
+
         textarea {
             width: 280px;
             height: 50px;
@@ -102,7 +118,6 @@
             text-align: center;
             outline: none;
             border-radius: 8px;
-            margin-top: 10px;
         }
 
         .bottom-btns {
@@ -159,7 +174,10 @@
         <canvas id="wheel"></canvas>
     </div>
 
-    <textarea id="namesInput" placeholder="أدخل الأسماء هنا..." oninput="updateWheel()"></textarea>
+    <div class="input-section">
+        <div class="count-badge" id="namesCount">0</div>
+        <textarea id="namesInput" placeholder="أدخل الأسماء هنا..." oninput="updateWheel()"></textarea>
+    </div>
 
     <div class="bottom-btns">
         <button class="btn reset-btn" onclick="fullReset()" id="resetBtn">حذف الكل</button>
@@ -183,6 +201,7 @@
         const winnerDisplay = document.getElementById('winner-display');
         const resultsList = document.getElementById('results-list');
         const htmlTag = document.getElementById('htmlTag');
+        const namesCountLabel = document.getElementById('namesCount');
 
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         function playTick() {
@@ -220,30 +239,25 @@
 
         const langData = {
             ar: { 
-                res: "📜 الفائزين:", 
-                reset: "حذف الكل", 
-                set: "⚙️ الإعدادات", 
-                back: "عودة", 
-                title: "الاعدادات", 
-                placeholder: "أدخل الأسماء هنا...", 
-                white: "☀️ الوضع الأبيض", 
-                black: "🌙 الوضع الأسود",
-                dir: "rtl" 
+                res: "📜 الفائزين:", reset: "حذف الكل", set: "⚙️ الإعدادات", back: "عودة", title: "الاعدادات", 
+                placeholder: "أدخل الأسماء هنا...", white: "☀️ الوضع الأبيض", black: "🌙 الوضع الأسود", dir: "rtl" 
             },
             en: { 
-                res: "📜 Winners:", 
-                reset: "Reset All", 
-                set: "⚙️ Settings", 
-                back: "Back", 
-                title: "Settings", 
-                placeholder: "Enter names here...", 
-                white: "☀️ White Theme", 
-                black: "🌙 Black Theme",
-                dir: "ltr" 
+                res: "📜 Winners:", reset: "Reset All", set: "⚙️ Settings", back: "Back", title: "Settings", 
+                placeholder: "Enter names here...", white: "☀️ White Theme", black: "🌙 Black Theme", dir: "ltr" 
             }
         };
 
+        // دالة حفظ واستعادة الإعدادات
+        function loadSettings() {
+            const savedLang = localStorage.getItem('appLang') || 'ar';
+            const savedTheme = localStorage.getItem('appTheme') || 'white';
+            changeLang(savedLang);
+            toggleTheme(savedTheme);
+        }
+
         function changeLang(lang) {
+            localStorage.setItem('appLang', lang); // حفظ اللغة
             htmlTag.lang = lang; 
             htmlTag.dir = langData[lang].dir;
             document.getElementById('resTitle').innerText = langData[lang].res;
@@ -258,6 +272,7 @@
         }
 
         function toggleTheme(theme) { 
+            localStorage.setItem('appTheme', theme); // حفظ الوضع
             document.body.setAttribute('data-theme', theme); 
         }
 
@@ -268,6 +283,10 @@
 
         function updateWheel() {
             let rawNames = namesInput.value.split('\n').filter(n => n.trim() !== "");
+            
+            // تحديث عداد المدخلات
+            namesCountLabel.innerText = rawNames.length;
+            
             namesForWheel = [];
             if (rawNames.length > 0) {
                 let multiplier = Math.max(1, Math.ceil(24 / rawNames.length));
@@ -367,7 +386,8 @@
             currentAngle = 0; updateWheel();
         }
 
-        updateWheel();
+        // تشغيل استعادة الإعدادات عند فتح التطبيق
+        loadSettings();
     </script>
 </body>
 </html>

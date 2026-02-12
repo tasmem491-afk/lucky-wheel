@@ -1,4 +1,4 @@
-const cacheName = 'lucky-wheel-v1';
+const cacheName = 'lucky-wheel-v2';
 const assets = [
   './',
   './index.html',
